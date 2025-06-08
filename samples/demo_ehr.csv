@@ -1,0 +1,11 @@
+patient_id,age,gender,diagnosis,blood_pressure,heart_rate,temperature,medication,lab_result
+P001,45,M,Hypertension,140/90,72,98.6,Lisinopril,Normal
+P002,62,F,Type 2 Diabetes,135/85,68,98.4,Metformin,High
+P003,38,M,Asthma,120/80,75,98.8,Albuterol,Normal
+P004,55,F,Hypothyroidism,125/82,70,98.5,Levothyroxine,Low
+P005,41,M,Anxiety,130/85,80,98.7,Sertraline,Normal
+P006,58,F,Arthritis,128/84,72,98.6,Ibuprofen,Normal
+P007,49,M,GERD,122/78,74,98.5,Omeprazole,Normal
+P008,67,F,Osteoporosis,130/82,76,98.4,Alendronate,Low
+P009,52,M,Depression,125/80,70,98.6,Fluoxetine,Normal
+P010,44,F,Migraine,118/75,73,98.7,Sumatriptan,Normal 

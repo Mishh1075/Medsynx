@@ -1,0 +1,6 @@
+id,age,gender,condition,blood_pressure,heart_rate
+1,45,M,Hypertension,140/90,72
+2,32,F,Normal,120/80,68
+3,58,M,Diabetes,135/85,75
+4,29,F,Normal,118/78,70
+5,62,M,Hypertension,145/95,80 
