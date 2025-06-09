@@ -1,34 +1,27 @@
+# Use an official Python runtime as a parent image
 FROM python:3.9-slim
 
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE 1
+ENV PYTHONUNBUFFERED 1
+
+# Set work directory
 WORKDIR /app
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    curl \
-    software-properties-common \
-    && rm -rf /var/lib/apt/lists/*
+RUN apt-get update \
+    && apt-get -y install libpq-dev gcc \
+    && apt-get clean
 
-# Copy requirements first to leverage Docker cache
+# Install Python dependencies
 COPY requirements.txt .
-RUN pip install -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
+# Copy project
 COPY . .
 
 # Create necessary directories
-RUN mkdir -p uploads
+RUN mkdir -p data/original data/synthetic
 
-# Expose ports for FastAPI and Streamlit
-EXPOSE 8000 8501
-
-# Copy and set permissions for the startup script
-COPY run.py .
-RUN chmod +x run.py
-
-# Set environment variables
-ENV PYTHONPATH=/app
-ENV PYTHONUNBUFFERED=1
-
-# Run the application
-CMD ["python", "run.py"] 
+# Command to run the application
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"] 

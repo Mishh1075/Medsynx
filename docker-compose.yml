@@ -5,40 +5,37 @@ services:
     build: .
     ports:
       - "8000:8000"
-    volumes:
-      - ./app:/app/app
-      - ./uploads:/app/uploads
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/medsynx
-      - SECRET_KEY=${SECRET_KEY}
+      - POSTGRES_SERVER=db
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=synthetic_data
     depends_on:
       - db
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ./data:/app/data
 
   frontend:
-    build: 
-      context: .
-      dockerfile: Dockerfile.frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
     ports:
-      - "8501:8501"
-    volumes:
-      - ./frontend:/app/frontend
-    environment:
-      - API_URL=http://backend:8000
+      - "3000:3000"
     depends_on:
       - backend
-    command: streamlit run frontend/app.py
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000
 
   db:
     image: postgres:13
-    ports:
-      - "5432:5432"
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=medsynx
+      - POSTGRES_DB=synthetic_data
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
 
 volumes:
   postgres_data: 

@@ -1,207 +1,124 @@
-# MedSynX: Privacy-Preserving Synthetic Healthcare Data Generation Platform
+# MedSynx: Privacy-Preserving Synthetic Medical Data Generator
 
-## Overview
-MedSynX is a state-of-the-art platform for generating synthetic healthcare data with strong privacy guarantees. It uses advanced Generative Adversarial Networks (GANs) with Differential Privacy (DP) to create high-quality synthetic data while preserving patient confidentiality.
+A scalable platform for generating synthetic medical data using Generative Adversarial Networks (GANs) with Differential Privacy guarantees.
 
-## Key Features
+## Features
 
-### Data Generation
-- Synthetic tabular data generation using DP-GANs
-- Privacy-preserving data synthesis
-- Support for various healthcare data formats
-- Configurable privacy parameters (ε, δ)
+- 🔒 User Authentication & Authorization
+- 📊 Tabular Data Generation using SynthCity
+- 🔐 Differential Privacy Integration
+- 📈 Utility and Privacy Metrics
+- 🌐 Modern React Frontend
+- 🚀 FastAPI Backend
 
-### Privacy & Security
-- Differential Privacy integration
-- k-anonymity and l-diversity checks
-- Membership inference attack protection
-- Comprehensive security measures
-- Detailed audit logging
+## Project Structure
 
-### Evaluation & Metrics
-- Statistical similarity measures
-- Privacy preservation metrics
-- Machine learning utility metrics
-- Visual analytics and reporting
-- Comprehensive evaluation dashboard
-
-### User Interface
-- Intuitive web interface
-- Secure user authentication
-- Data upload and preprocessing
-- Privacy parameter configuration
-- Results visualization and download
+```
+Medsynx/
+├── app/                    # Backend (FastAPI)
+│   ├── api/               # API endpoints
+│   ├── core/              # Core configurations
+│   ├── db/                # Database models and sessions
+│   ├── models/            # SQLAlchemy models
+│   └── services/          # Business logic
+├── frontend/              # React frontend
+│   ├── src/
+│   │   ├── components/    # React components
+│   │   └── services/     # API services
+├── data/                  # Data storage
+│   ├── original/          # Original uploaded data
+│   └── synthetic/         # Generated synthetic data
+├── notebooks/             # Jupyter notebooks for testing
+├── scripts/               # Utility scripts
+├── tests/                 # Test cases
+├── Dockerfile             # Docker configuration
+├── docker-compose.yml     # Docker compose configuration
+└── requirements.txt       # Python dependencies
+```
 
 ## Quick Start
 
-### Prerequisites
-```bash
-# Clone the repository
-git clone https://github.com/yourusername/medsynx.git
-cd medsynx
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/Medsynx.git
+   cd Medsynx
+   ```
 
-# Create and activate virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
+2. Install backend dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-# Install dependencies
-pip install -r requirements.txt
-```
+3. Install frontend dependencies:
+   ```bash
+   cd frontend
+   npm install
+   ```
 
-### Running with Docker
-```bash
-# Build and run with Docker Compose
-docker-compose up --build
-```
+4. Start the backend server:
+   ```bash
+   cd ..
+   uvicorn app.main:app --reload
+   ```
 
-### Manual Setup
-```bash
-# Install development dependencies
-pip install -r requirements-dev.txt
+5. Start the frontend development server:
+   ```bash
+   cd frontend
+   npm start
+   ```
 
-# Run the application
-python run.py
-```
+6. Visit http://localhost:3000 in your browser
 
-## Usage Guide
+## Environment Variables
 
-1. **User Registration/Login**
-   - Create an account or login at `/auth/register`
-   - Secure authentication with JWT tokens
+Create a `.env` file in the root directory:
 
-2. **Data Upload**
-   - Support for CSV and Excel formats
-   - Automatic data validation
-   - Basic preprocessing options
-
-3. **Synthetic Data Generation**
-   - Configure privacy parameters
-   - Select generation model
-   - Monitor generation progress
-
-4. **Evaluation & Download**
-   - View comprehensive metrics
-   - Analyze data quality
-   - Download synthetic dataset
-
-## Privacy Controls
-
-### Differential Privacy Parameters
-- Epsilon (ε): Controls privacy budget
-- Delta (δ): Privacy relaxation parameter
-- Minimum dataset size requirements
-
-### Security Measures
-- Rate limiting
-- Input validation
-- Secure file handling
-- Audit logging
-- Access controls
-
-## Evaluation Metrics
-
-### Utility Metrics
-- Statistical similarity
-- Distribution comparison
-- ML model performance
-
-### Privacy Metrics
-- Membership inference risk
-- Attribute disclosure risk
-- k-anonymity estimation
-- l-diversity measures
-
-## Architecture
-
-```mermaid
-graph TD
-    A[User Interface] --> B[Authentication]
-    B --> C[Data Upload]
-    C --> D[Preprocessing]
-    D --> E[Synthetic Generation]
-    E --> F[Evaluation]
-    F --> G[Results & Download]
-    
-    H[Privacy Controls] --> E
-    I[Security Layer] --> B
-    J[Audit System] --> K[Logging]
+```env
+SECRET_KEY=your-secret-key
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=postgres
+POSTGRES_DB=synthetic_data
+POSTGRES_SERVER=localhost
 ```
 
 ## API Documentation
 
-### Authentication
-```
-POST /api/v1/auth/register
-POST /api/v1/auth/login
-```
+Once the server is running, visit:
+- Swagger UI: http://localhost:8000/docs
+- ReDoc: http://localhost:8000/redoc
 
-### Data Management
-```
-POST /api/v1/upload
-GET /api/v1/datasets
-```
+## Features in Detail
 
-### Synthetic Generation
-```
-POST /api/v1/generate
-GET /api/v1/jobs/{job_id}
-```
+### Data Generation
+- Upload tabular data (CSV format)
+- Generate synthetic data using SynthCity's DP-GAN implementation
+- Download generated synthetic data
+- View utility and privacy metrics
 
-### Evaluation
-```
-GET /api/v1/evaluate/{dataset_id}
-GET /api/v1/metrics/{job_id}
-```
+### Privacy Guarantees
+- Differential Privacy integration through SynthCity
+- Configurable privacy parameters (ε, δ)
+- Privacy evaluation metrics
 
-## Development
-
-### Testing
-```bash
-# Run tests
-pytest
-
-# Run with coverage
-pytest --cov=app tests/
-```
-
-### Code Quality
-```bash
-# Run linters
-flake8 app/
-black app/
-```
-
-## Security Considerations
-
-- All uploads are validated and sanitized
-- File size and type restrictions
-- Rate limiting per IP
-- Secure password policies
-- Regular security audits
-
-## Future Roadmap
-
-### Phase 2 (Medical Imaging)
-- Support for DICOM and NIFTI formats
-- Image-specific GANs
-- Advanced visualization tools
-
-### Phase 3 (Enhanced Features)
-- Additional privacy metrics
-- Advanced visualization options
-- API expansion
-- Performance optimization
+### Evaluation Metrics
+- Statistical similarity measures
+- Machine learning utility metrics
+- Privacy attack resistance metrics
 
 ## Contributing
 
-Please read [CONTRIBUTING.md](CONTRIBUTING.md) for details on our code of conduct and the process for submitting pull requests.
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License - see the LICENSE file for details.
 
 ## Acknowledgments
 
 - SynthCity library for synthetic data generation
 - FastAPI for the backend framework
-- Streamlit for the frontend interface 
+- React for the frontend framework 
