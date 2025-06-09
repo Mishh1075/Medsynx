@@ -6,6 +6,8 @@ import pandas as pd
 import logging
 from typing import Dict, Any, Optional
 from datetime import datetime
+import cv2
+from pathlib import Path
 
 from app.core.config import settings
 from app.core.security_middleware import SecurityMiddleware
@@ -17,6 +19,9 @@ from app.services.synthetic_generator import SyntheticGenerator
 from app.services.evaluation_service import EvaluationService
 from app.api.auth import router as auth_router, get_current_user
 from app.api.v1 import auth as auth_v1, synthetic_data
+from app.services.privacy_evaluator import PrivacyEvaluator
+from app.services.utility_evaluator import UtilityEvaluator
+from app.services.image_generator import MedicalImageGenerator
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -49,6 +54,9 @@ data_processor = DataProcessor(settings.UPLOAD_DIR)
 synthetic_generator = SyntheticGenerator()
 evaluation_service = EvaluationService()
 audit_logger = AuditLogger()
+privacy_evaluator = PrivacyEvaluator()
+utility_evaluator = UtilityEvaluator()
+image_generator = MedicalImageGenerator()
 
 # Include routers
 app.include_router(auth_v1.router, prefix=f"{settings.API_V1_STR}/auth", tags=["auth"])
@@ -169,19 +177,33 @@ async def generate_synthetic_data(
             )
             
             # Generate synthetic data
-            result = generator.generate_synthetic_data(processed_data)
+            synthetic_result = generator.generate_synthetic_data(processed_data)
             
-            # Update job status
+            # Evaluate privacy
+            privacy_metrics = privacy_evaluator.evaluate_privacy(
+                processed_data.values,
+                synthetic_result["synthetic_data"].values
+            )
+            
+            # Evaluate utility
+            utility_metrics = utility_evaluator.evaluate_utility(
+                processed_data,
+                synthetic_result["synthetic_data"]
+            )
+            
+            # Update job status and metrics
             job.status = "completed"
             job.completed_at = pd.Timestamp.now()
+            job.privacy_metrics = privacy_metrics
+            job.utility_metrics = utility_metrics
             db.commit()
             
             return {
                 "message": "Synthetic data generated successfully",
                 "job_id": job.id,
-                "synthetic_data": result["synthetic_data"].to_dict(),
-                "privacy_metrics": result["privacy_metrics"],
-                "performance_metrics": result["performance_metrics"]
+                "synthetic_data": synthetic_result["synthetic_data"].to_dict(),
+                "privacy_metrics": privacy_metrics,
+                "utility_metrics": utility_metrics
             }
             
         except Exception as e:
@@ -241,6 +263,99 @@ async def list_user_datasets(
         }
     except Exception as e:
         logger.error(f"Error listing datasets: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+@app.post("/api/v1/generate/image")
+async def generate_synthetic_images(
+    file: UploadFile = File(...),
+    num_images: int = 1,
+    epsilon: float = settings.DEFAULT_EPSILON,
+    delta: float = settings.DEFAULT_DELTA,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+) -> Dict[str, Any]:
+    """
+    Generate synthetic medical images.
+    """
+    try:
+        # Validate file type
+        if not file.filename.lower().endswith(('.dcm', '.nii', '.nii.gz', '.png', '.jpg', '.jpeg')):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Unsupported file format"
+            )
+        
+        # Save uploaded file
+        file_path = f"data/original/{file.filename}"
+        with open(file_path, "wb") as buffer:
+            content = await file.read()
+            buffer.write(content)
+        
+        # Create image generation job
+        job = ImageGenerationJob(
+            user_id=current_user.id,
+            original_file=file_path,
+            status="running",
+            num_images=num_images,
+            epsilon=epsilon,
+            delta=delta
+        )
+        db.add(job)
+        db.commit()
+        
+        try:
+            # Load and preprocess image
+            if file.filename.endswith('.dcm'):
+                image = image_generator.load_dicom(file_path)
+            elif file.filename.endswith(('.nii', '.nii.gz')):
+                image = image_generator.load_nifti(file_path)
+            else:
+                image = cv2.imread(file_path)
+            
+            # Preprocess image
+            processed_image = image_generator.preprocess_image(image)
+            
+            # Generate synthetic images
+            synthetic_images = image_generator.generate_images(num_images)
+            
+            # Save synthetic images
+            output_paths = []
+            for i, img in enumerate(synthetic_images):
+                output_path = f"data/synthetic/synthetic_{job.id}_{i}{Path(file.filename).suffix}"
+                
+                if file.filename.endswith('.dcm'):
+                    image_generator.save_dicom(img, output_path)
+                elif file.filename.endswith(('.nii', '.nii.gz')):
+                    image_generator.save_nifti(img, output_path)
+                else:
+                    cv2.imwrite(output_path, img)
+                    
+                output_paths.append(output_path)
+            
+            # Update job status
+            job.status = "completed"
+            job.completed_at = pd.Timestamp.now()
+            job.output_files = output_paths
+            db.commit()
+            
+            return {
+                "message": "Synthetic images generated successfully",
+                "job_id": job.id,
+                "output_paths": output_paths
+            }
+            
+        except Exception as e:
+            # Update job status on failure
+            job.status = "failed"
+            job.error_message = str(e)
+            db.commit()
+            raise
+            
+    except Exception as e:
+        logger.error(f"Error generating synthetic images: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)

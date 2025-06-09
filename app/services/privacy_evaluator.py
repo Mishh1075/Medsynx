@@ -5,6 +5,9 @@ from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score
 import logging
+import tensorflow_privacy
+from diffprivlib.mechanisms import Gaussian
+from opacus.utils.batch_memory_manager import BatchMemoryManager
 
 logger = logging.getLogger(__name__)
 
@@ -13,192 +16,120 @@ class PrivacyEvaluator:
     
     def __init__(self):
         self.metrics_history = []
+        self.membership_inference_model = RandomForestClassifier()
+        self.dp_mechanism = Gaussian()
         
-    def evaluate_privacy(self, real_data: pd.DataFrame, synthetic_data: pd.DataFrame) -> Dict[str, float]:
+    def evaluate_privacy(self, original_data: np.ndarray, synthetic_data: np.ndarray) -> Dict[str, Any]:
         """
-        Evaluate privacy metrics for synthetic data.
+        Comprehensive privacy evaluation of synthetic data
+        """
+        metrics = {
+            "differential_privacy": self._evaluate_dp_guarantees(original_data, synthetic_data),
+            "membership_inference": self._evaluate_membership_inference(original_data, synthetic_data),
+            "attribute_disclosure": self._evaluate_attribute_disclosure(original_data, synthetic_data),
+            "k_anonymity": self._calculate_k_anonymity(synthetic_data),
+            "l_diversity": self._calculate_l_diversity(synthetic_data)
+        }
+        self.metrics_history.append(metrics)
+        return metrics
+
+    def _evaluate_dp_guarantees(self, original_data: np.ndarray, synthetic_data: np.ndarray) -> Dict[str, float]:
+        """
+        Calculate epsilon and delta guarantees
+        """
+        # Calculate sensitivity
+        sensitivity = np.max(np.abs(original_data - np.mean(original_data, axis=0)))
         
-        Args:
-            real_data: Original DataFrame
-            synthetic_data: Generated synthetic DataFrame
-            
-        Returns:
-            Dictionary containing privacy metrics
+        # Calculate epsilon based on noise level and sensitivity
+        noise_std = np.std(synthetic_data - np.mean(synthetic_data, axis=0))
+        epsilon = sensitivity / noise_std
+        
+        # Calculate delta based on sample size and dimension
+        n_samples = len(original_data)
+        delta = 1.0 / (n_samples * np.log(n_samples))
+        
+        return {
+            "epsilon": float(epsilon),
+            "delta": float(delta)
+        }
+
+    def _evaluate_membership_inference(self, original_data: np.ndarray, synthetic_data: np.ndarray) -> Dict[str, float]:
         """
-        try:
-            metrics = {
-                # Basic Privacy Metrics
-                'identifiability_score': self._calculate_identifiability(real_data, synthetic_data),
-                'attribute_disclosure_risk': self._calculate_attribute_disclosure(real_data, synthetic_data),
-                'membership_inference_risk': self._calculate_membership_inference(real_data, synthetic_data),
-                
-                # Statistical Privacy Metrics
-                'distance_to_closest_record': self._calculate_distance_to_closest(real_data, synthetic_data),
-                'duplicate_records': self._calculate_duplicates(synthetic_data),
-                
-                # Distribution Privacy
-                'distribution_similarity': self._calculate_distribution_similarity(real_data, synthetic_data),
-                
-                # Advanced Metrics
-                'k_anonymity_estimate': self._estimate_k_anonymity(synthetic_data),
-                'l_diversity_estimate': self._estimate_l_diversity(synthetic_data)
-            }
-            
-            self.metrics_history.append(metrics)
-            return metrics
-            
-        except Exception as e:
-            logger.error(f"Error in privacy evaluation: {str(e)}")
-            raise
-            
-    def _calculate_identifiability(self, real: pd.DataFrame, synthetic: pd.DataFrame) -> float:
-        """Calculate identifiability risk score."""
-        try:
-            # Normalize data
-            real_norm = (real - real.mean()) / real.std()
-            syn_norm = (synthetic - synthetic.mean()) / synthetic.std()
-            
-            # Calculate minimum distances between real and synthetic records
-            min_distances = []
-            for _, real_row in real_norm.iterrows():
-                distances = np.linalg.norm(syn_norm - real_row, axis=1)
-                min_distances.append(np.min(distances))
-                
-            # Convert to risk score (0-1)
-            risk_score = 1 / (1 + np.mean(min_distances))
-            return float(risk_score)
-        except Exception as e:
-            logger.warning(f"Error calculating identifiability: {str(e)}")
-            return -1.0
-            
-    def _calculate_attribute_disclosure(self, real: pd.DataFrame, synthetic: pd.DataFrame) -> float:
-        """Calculate attribute disclosure risk."""
-        try:
-            # Calculate correlation matrices
-            real_corr = real.corr().fillna(0)
-            syn_corr = synthetic.corr().fillna(0)
-            
-            # Calculate difference in correlations
-            correlation_diff = np.abs(real_corr - syn_corr).mean().mean()
-            
-            # Convert to risk score (0-1)
-            risk_score = 1 - np.exp(-correlation_diff)
-            return float(risk_score)
-        except Exception as e:
-            logger.warning(f"Error calculating attribute disclosure: {str(e)}")
-            return -1.0
-            
-    def _calculate_membership_inference(self, real: pd.DataFrame, synthetic: pd.DataFrame) -> float:
-        """Estimate membership inference attack risk."""
-        try:
-            # Prepare data for membership inference
-            real_sample = real.sample(n=min(len(real), 1000), random_state=42)
-            syn_sample = synthetic.sample(n=min(len(synthetic), 1000), random_state=42)
-            
-            # Create training data with labels (0 for real, 1 for synthetic)
-            X = pd.concat([real_sample, syn_sample])
-            y = np.concatenate([np.zeros(len(real_sample)), np.ones(len(syn_sample))])
-            
-            # Split data and train classifier
-            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
-            clf = RandomForestClassifier(n_estimators=10)
-            clf.fit(X_train, y_train)
-            
-            # Calculate accuracy (risk score)
-            y_pred = clf.predict(X_test)
-            risk_score = accuracy_score(y_test, y_pred)
-            
-            return float(risk_score)
-        except Exception as e:
-            logger.warning(f"Error calculating membership inference: {str(e)}")
-            return -1.0
-            
-    def _calculate_distance_to_closest(self, real: pd.DataFrame, synthetic: pd.DataFrame) -> float:
-        """Calculate average distance to closest record."""
-        try:
-            # Normalize data
-            real_norm = (real - real.mean()) / real.std()
-            syn_norm = (synthetic - synthetic.mean()) / synthetic.std()
-            
-            # Calculate distances
-            distances = []
-            for _, syn_row in syn_norm.iterrows():
-                dist = np.linalg.norm(real_norm - syn_row, axis=1)
-                distances.append(np.min(dist))
-                
-            return float(np.mean(distances))
-        except Exception as e:
-            logger.warning(f"Error calculating distance to closest: {str(e)}")
-            return -1.0
-            
-    def _calculate_duplicates(self, synthetic: pd.DataFrame) -> float:
-        """Calculate proportion of duplicate records."""
-        try:
-            total_records = len(synthetic)
-            unique_records = len(synthetic.drop_duplicates())
-            return float(1 - (unique_records / total_records))
-        except Exception as e:
-            logger.warning(f"Error calculating duplicates: {str(e)}")
-            return -1.0
-            
-    def _calculate_distribution_similarity(self, real: pd.DataFrame, synthetic: pd.DataFrame) -> float:
-        """Calculate distribution similarity score."""
-        try:
-            similarities = []
-            for column in real.columns:
-                if real[column].dtype in ['int64', 'float64']:
-                    # For numerical columns, compare distributions
-                    real_hist = np.histogram(real[column], bins=20)[0]
-                    syn_hist = np.histogram(synthetic[column], bins=20)[0]
-                    similarity = 1 - np.mean(np.abs(real_hist/sum(real_hist) - syn_hist/sum(syn_hist)))
-                    similarities.append(similarity)
-                else:
-                    # For categorical columns, compare value frequencies
-                    real_freq = real[column].value_counts(normalize=True)
-                    syn_freq = synthetic[column].value_counts(normalize=True)
-                    common_categories = set(real_freq.index) & set(syn_freq.index)
-                    if common_categories:
-                        similarity = 1 - np.mean([abs(real_freq.get(cat, 0) - syn_freq.get(cat, 0)) 
-                                               for cat in common_categories])
-                        similarities.append(similarity)
-                        
-            return float(np.mean(similarities))
-        except Exception as e:
-            logger.warning(f"Error calculating distribution similarity: {str(e)}")
-            return -1.0
-            
-    def _estimate_k_anonymity(self, synthetic: pd.DataFrame) -> float:
-        """Estimate k-anonymity of synthetic data."""
-        try:
-            # Count frequency of unique combinations
-            frequencies = synthetic.groupby(list(synthetic.columns)).size()
-            k = frequencies.min()  # Minimum group size is k
-            
-            # Normalize to 0-1 range
-            k_norm = 1 - (1 / (1 + k))
-            return float(k_norm)
-        except Exception as e:
-            logger.warning(f"Error estimating k-anonymity: {str(e)}")
-            return -1.0
-            
-    def _estimate_l_diversity(self, synthetic: pd.DataFrame) -> float:
-        """Estimate l-diversity of synthetic data."""
-        try:
-            # Consider all columns as quasi-identifiers except the last one
-            quasi_identifiers = synthetic.columns[:-1]
-            sensitive_attr = synthetic.columns[-1]
-            
-            # Group by quasi-identifiers and count unique values in sensitive attribute
-            l_values = synthetic.groupby(list(quasi_identifiers))[sensitive_attr].nunique()
-            l = l_values.min()  # Minimum number of distinct values is l
-            
-            # Normalize to 0-1 range
-            l_norm = 1 - (1 / (1 + l))
-            return float(l_norm)
-        except Exception as e:
-            logger.warning(f"Error estimating l-diversity: {str(e)}")
-            return -1.0
-            
+        Perform membership inference attack evaluation
+        """
+        # Prepare training data
+        X_train = np.vstack([original_data, synthetic_data])
+        y_train = np.hstack([np.ones(len(original_data)), np.zeros(len(synthetic_data))])
+        
+        # Split for testing
+        X_train, X_test, y_train, y_test = train_test_split(X_train, y_train, test_size=0.2)
+        
+        # Train membership inference model
+        self.membership_inference_model.fit(X_train, y_train)
+        
+        # Evaluate attack success rate
+        attack_success_rate = self.membership_inference_model.score(X_test, y_test)
+        
+        return {
+            "attack_success_rate": float(attack_success_rate),
+            "privacy_risk_score": 1.0 - float(attack_success_rate)
+        }
+
+    def _evaluate_attribute_disclosure(self, original_data: np.ndarray, synthetic_data: np.ndarray) -> Dict[str, float]:
+        """
+        Evaluate attribute disclosure risk
+        """
+        # Calculate distance between closest records
+        min_distances = []
+        for orig_record in original_data:
+            distances = np.linalg.norm(synthetic_data - orig_record, axis=1)
+            min_distances.append(np.min(distances))
+        
+        # Calculate disclosure risk metrics
+        avg_min_distance = np.mean(min_distances)
+        max_disclosure_risk = 1.0 / (1.0 + np.min(min_distances))
+        
+        return {
+            "average_minimum_distance": float(avg_min_distance),
+            "maximum_disclosure_risk": float(max_disclosure_risk)
+        }
+
+    def _calculate_k_anonymity(self, data: np.ndarray) -> Dict[str, int]:
+        """
+        Calculate k-anonymity of the synthetic data
+        """
+        # Convert to string representation for exact matching
+        records = [tuple(row) for row in data]
+        counts = {}
+        for record in records:
+            counts[record] = counts.get(record, 0) + 1
+        
+        k_anonymity = min(counts.values())
+        return {
+            "k_anonymity": int(k_anonymity)
+        }
+
+    def _calculate_l_diversity(self, data: np.ndarray) -> Dict[str, int]:
+        """
+        Calculate l-diversity of the synthetic data
+        """
+        # Assume last column is sensitive attribute
+        sensitive_values = data[:, -1]
+        groups = {}
+        
+        # Group by quasi-identifiers (all columns except last)
+        for i, record in enumerate(data[:, :-1]):
+            key = tuple(record)
+            if key not in groups:
+                groups[key] = set()
+            groups[key].add(sensitive_values[i])
+        
+        # Calculate minimum number of distinct sensitive values
+        l_diversity = min(len(group) for group in groups.values())
+        return {
+            "l_diversity": int(l_diversity)
+        }
+
     def generate_privacy_report(self) -> Dict[str, Any]:
         """Generate comprehensive privacy report."""
         if not self.metrics_history:
