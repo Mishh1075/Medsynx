@@ -1,3 +1,14 @@
+"""
+Synthetic Generator Service
+
+This module provides functionality for generating synthetic data using various models
+with differential privacy guarantees. It supports multiple synthetic data generation
+methods and provides privacy and utility metrics evaluation.
+
+Classes:
+    SyntheticGenerator: Main class for synthetic data generation and evaluation.
+"""
+
 from synthcity.plugins import Plugins
 from synthcity.plugins.core.dataloader import GenericDataLoader
 from synthcity.metrics.eval import evaluate_privacy, evaluate_performance
@@ -10,6 +21,22 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 class SyntheticGenerator:
+    """
+    A class for generating synthetic data with privacy guarantees.
+    
+    This class provides methods to:
+    - Generate synthetic data using various models
+    - Evaluate privacy metrics
+    - Calculate utility metrics
+    - Manage model parameters and configurations
+    
+    Attributes:
+        epsilon (float): Privacy parameter epsilon for differential privacy
+        delta (float): Privacy parameter delta for differential privacy
+        model_type (str): Type of synthetic data generation model
+        model_params (Dict): Additional model parameters
+    """
+    
     def __init__(
         self,
         epsilon: float = settings.DEFAULT_EPSILON,

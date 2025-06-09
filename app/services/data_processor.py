@@ -1,3 +1,13 @@
+"""
+Data Processor Service
+
+This module provides functionality for preprocessing and validating data before synthetic generation.
+It handles data type inference, schema validation, missing value handling, and data transformation.
+
+Classes:
+    DataProcessor: Main class for data preprocessing and validation.
+"""
+
 from synthcity.plugins import Plugins
 from synthcity.plugins.core.dataloader import GenericDataLoader
 from synthcity.plugins.core.schema import Schema
@@ -11,6 +21,21 @@ import logging
 logger = logging.getLogger(__name__)
 
 class DataProcessor:
+    """
+    A class for preprocessing and validating data before synthetic generation.
+    
+    This class provides methods to:
+    - Validate input data format and quality
+    - Infer data schema and types
+    - Handle missing values
+    - Transform data for model input
+    - Create data loaders for synthetic generation
+    
+    Attributes:
+        max_missing_ratio (float): Maximum allowed ratio of missing values (default: 0.3)
+        min_rows (int): Minimum required number of rows (default: 10)
+    """
+    
     def __init__(self, upload_dir: str):
         """
         Initialize the data processor.
@@ -65,121 +90,123 @@ class DataProcessor:
             
     def infer_schema(self, data: pd.DataFrame) -> Schema:
         """
-        Infer the schema of the input data.
+        Infer data schema including column types and constraints.
         
         Args:
-            data: Input DataFrame
+            data (pd.DataFrame): Input data to analyze
             
         Returns:
-            Schema object with column types and constraints
+            Schema: Inferred schema object with column information
         """
-        try:
-            # Infer data types
-            categorical_columns = []
-            numerical_columns = []
-            datetime_columns = []
-            
-            for col in data.columns:
-                if pd.api.types.is_numeric_dtype(data[col]):
-                    numerical_columns.append(col)
-                elif pd.api.types.is_datetime64_any_dtype(data[col]):
-                    datetime_columns.append(col)
-                else:
-                    categorical_columns.append(col)
-            
-            return Schema(
-                categorical_columns=categorical_columns,
-                numerical_columns=numerical_columns,
-                datetime_columns=datetime_columns
-            )
-        except Exception as e:
-            logger.error(f"Error inferring schema: {str(e)}")
-            raise
+        numerical_columns = data.select_dtypes(include=['int64', 'float64']).columns.tolist()
+        categorical_columns = data.select_dtypes(include=['object', 'category']).columns.tolist()
+        
+        return Schema(
+            numerical_columns=numerical_columns,
+            categorical_columns=categorical_columns
+        )
     
     def preprocess_data(
         self,
         data: pd.DataFrame,
-        schema: Optional[Schema] = None,
         target_column: Optional[str] = None,
         sensitive_features: Optional[List[str]] = None
-    ) -> Tuple[GenericDataLoader, Dict[str, Any]]:
+    ) -> Tuple[GenericDataLoader, Dict]:
         """
-        Preprocess the input data for synthetic generation.
+        Preprocess data for synthetic generation.
+        
+        This method:
+        1. Validates input data
+        2. Infers data schema
+        3. Handles missing values
+        4. Creates a data loader
+        5. Returns preprocessing information
         
         Args:
-            data: Input DataFrame
-            schema: Optional Schema object
-            target_column: Optional target column for supervised learning
-            sensitive_features: Optional list of sensitive columns
+            data (pd.DataFrame): Input data to preprocess
+            target_column (str, optional): Name of target column for supervised learning
+            sensitive_features (List[str], optional): List of sensitive feature columns
             
         Returns:
-            Tuple of (GenericDataLoader, preprocessing_info)
+            Tuple[GenericDataLoader, Dict]: Tuple containing:
+                - GenericDataLoader: Preprocessed data loader for synthetic generation
+                - Dict: Information about preprocessing including schema and statistics
+                
+        Raises:
+            ValueError: If data validation fails or column names are invalid
         """
-        try:
-            if schema is None:
-                schema = self.infer_schema(data)
+        # Validate data
+        self.validate_data(data)
+        
+        # Infer schema
+        schema = self.infer_schema(data)
+        
+        # Handle missing values
+        data = self._handle_missing_values(data, schema)
+        
+        # Create data loader
+        loader = GenericDataLoader(
+            data=data,
+            target_column=target_column,
+            sensitive_features=sensitive_features
+        )
+        
+        # Prepare info dict
+        info = {
+            'schema': {
+                'numerical_columns': schema.numerical_columns,
+                'categorical_columns': schema.categorical_columns
+            },
+            'n_samples': len(data),
+            'target_column': target_column,
+            'sensitive_features': sensitive_features
+        }
+        
+        return loader, info
+    
+    def _handle_missing_values(self, data: pd.DataFrame, schema: Schema) -> pd.DataFrame:
+        """
+        Handle missing values in the dataset.
+        
+        Args:
+            data (pd.DataFrame): Input data with missing values
+            schema (Schema): Data schema with column information
             
-            # Handle missing values
-            for col in schema.numerical_columns:
-                data[col] = data[col].fillna(data[col].mean())
+        Returns:
+            pd.DataFrame: Data with handled missing values
+        """
+        # Fill numerical missing values with median
+        for col in schema.numerical_columns:
+            data[col] = data[col].fillna(data[col].median())
             
-            for col in schema.categorical_columns:
-                data[col] = data[col].fillna(data[col].mode()[0])
+        # Fill categorical missing values with mode
+        for col in schema.categorical_columns:
+            data[col] = data[col].fillna(data[col].mode()[0])
             
-            # Create dataloader
-            loader = GenericDataLoader(
-                data,
-                sensitive_features=sensitive_features or [],
-                target_column=target_column
-            )
-            
-            preprocessing_info = {
-                "schema": {
-                    "categorical_columns": schema.categorical_columns,
-                    "numerical_columns": schema.numerical_columns,
-                    "datetime_columns": schema.datetime_columns
-                },
-                "target_column": target_column,
-                "sensitive_features": sensitive_features,
-                "n_samples": len(data)
-            }
-            
-            return loader, preprocessing_info
-            
-        except Exception as e:
-            logger.error(f"Error in preprocessing data: {str(e)}")
-            raise
+        return data
     
     def validate_data(self, data: pd.DataFrame) -> bool:
         """
-        Validate the input data.
+        Validate input data for quality and format requirements.
         
         Args:
-            data: Input DataFrame
+            data (pd.DataFrame): Input data to validate
             
         Returns:
-            bool indicating if data is valid
+            bool: True if data is valid, False otherwise
+            
+        Raises:
+            ValueError: If data does not meet requirements
         """
-        try:
-            # Check if data is empty
-            if data.empty:
-                raise ValueError("Data is empty")
+        if len(data) < self.min_rows:
+            raise ValueError(f"Data must have at least {self.min_rows} rows")
             
-            # Check for all missing columns
-            if data.columns.empty:
-                raise ValueError("No columns in data")
+        missing_ratio = data.isnull().sum().sum() / (data.shape[0] * data.shape[1])
+        if missing_ratio > self.max_missing_ratio:
+            raise ValueError(f"Data has too many missing values: {missing_ratio:.2%}")
             
-            # Check for too many missing values
-            missing_ratio = data.isnull().sum().sum() / (data.shape[0] * data.shape[1])
-            if missing_ratio > 0.5:
-                raise ValueError("Too many missing values (>50%)")
-            
-            return True
-            
-        except Exception as e:
-            logger.error(f"Data validation error: {str(e)}")
-            raise
-            
+        return True
+    
     def get_data_summary(self, data: pd.DataFrame) -> Dict[str, Any]:
         """
         Generate a summary of the dataset.
