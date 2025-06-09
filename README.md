@@ -1,124 +1,156 @@
-# MedSynx: Privacy-Preserving Synthetic Medical Data Generator
+# MedSynx: Privacy-Preserving Medical Data Synthesis Platform
 
-A scalable platform for generating synthetic medical data using Generative Adversarial Networks (GANs) with Differential Privacy guarantees.
+MedSynx is a comprehensive platform for generating synthetic medical data with strong privacy guarantees. It supports both tabular data and medical imaging, with built-in privacy metrics and utility evaluation tools.
 
 ## Features
 
-- 🔒 User Authentication & Authorization
-- 📊 Tabular Data Generation using SynthCity
-- 🔐 Differential Privacy Integration
-- 📈 Utility and Privacy Metrics
-- 🌐 Modern React Frontend
-- 🚀 FastAPI Backend
+- **Privacy-Preserving Data Generation**
+  - Differential Privacy (ε, δ) guarantees
+  - Membership Inference Attack resistance
+  - k-anonymity and l-diversity metrics
 
-## Project Structure
+- **Medical Data Support**
+  - Tabular data (demographics, conditions, medications)
+  - Medical imaging (DICOM/NIFTI support)
+  - GAN-based image synthesis
 
-```
-Medsynx/
-├── app/                    # Backend (FastAPI)
-│   ├── api/               # API endpoints
-│   ├── core/              # Core configurations
-│   ├── db/                # Database models and sessions
-│   ├── models/            # SQLAlchemy models
-│   └── services/          # Business logic
-├── frontend/              # React frontend
-│   ├── src/
-│   │   ├── components/    # React components
-│   │   └── services/     # API services
-├── data/                  # Data storage
-│   ├── original/          # Original uploaded data
-│   └── synthetic/         # Generated synthetic data
-├── notebooks/             # Jupyter notebooks for testing
-├── scripts/               # Utility scripts
-├── tests/                 # Test cases
-├── Dockerfile             # Docker configuration
-├── docker-compose.yml     # Docker compose configuration
-└── requirements.txt       # Python dependencies
-```
+- **Evaluation Tools**
+  - Privacy metrics visualization
+  - Statistical similarity tests
+  - ML utility metrics
+  - Medical domain-specific evaluation
 
 ## Quick Start
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/yourusername/Medsynx.git
-   cd Medsynx
-   ```
+1. **Setup Environment**
 
-2. Install backend dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
+```bash
+# Clone repository
+git clone https://github.com/yourusername/medsynx.git
+cd medsynx
 
-3. Install frontend dependencies:
-   ```bash
-   cd frontend
-   npm install
-   ```
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 
-4. Start the backend server:
-   ```bash
-   cd ..
-   uvicorn app.main:app --reload
-   ```
-
-5. Start the frontend development server:
-   ```bash
-   cd frontend
-   npm start
-   ```
-
-6. Visit http://localhost:3000 in your browser
-
-## Environment Variables
-
-Create a `.env` file in the root directory:
-
-```env
-SECRET_KEY=your-secret-key
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=postgres
-POSTGRES_DB=synthetic_data
-POSTGRES_SERVER=localhost
+# Install dependencies
+pip install -r requirements.txt
 ```
 
-## API Documentation
+2. **Generate Sample Data**
 
-Once the server is running, visit:
-- Swagger UI: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
+```bash
+# Generate and preprocess Synthea data
+python scripts/generate_sample_data.py
+```
 
-## Features in Detail
+3. **Run Demo**
 
-### Data Generation
-- Upload tabular data (CSV format)
-- Generate synthetic data using SynthCity's DP-GAN implementation
-- Download generated synthetic data
-- View utility and privacy metrics
+```bash
+# Run complete demo workflow
+python scripts/run_demo.py
+```
 
-### Privacy Guarantees
-- Differential Privacy integration through SynthCity
-- Configurable privacy parameters (ε, δ)
-- Privacy evaluation metrics
+4. **Start Development Server**
+
+```bash
+# Start FastAPI server
+uvicorn app.main:app --reload
+```
+
+## Documentation
+
+### Privacy Parameters
+
+The platform supports configurable privacy parameters:
+
+- `epsilon (ε)`: Privacy budget (default: 1.0)
+- `delta (δ)`: Privacy relaxation parameter (default: 1e-5)
+- `noise_multiplier`: Controls noise addition for privacy (default: 1.0)
+- `num_samples`: Number of synthetic samples to generate
+
+### Medical Image Generation
+
+The platform includes a GAN-based medical image generator:
+
+```python
+from app.services.image_generator import MedicalImageGenerator
+
+# Initialize generator
+generator = MedicalImageGenerator()
+
+# Generate synthetic images
+images = generator.generate_images(num_images=4)
+
+# Save as DICOM
+generator.save_dicom(images[0], 'output/synthetic_image.dcm')
+```
 
 ### Evaluation Metrics
-- Statistical similarity measures
-- Machine learning utility metrics
-- Privacy attack resistance metrics
+
+```python
+from app.services.medical_evaluator import MedicalEvaluator
+
+evaluator = MedicalEvaluator()
+metrics = evaluator.evaluate_medical_data(
+    original_data,
+    synthetic_data,
+    categorical_columns=['RACE', 'ETHNICITY', 'GENDER']
+)
+```
+
+## Development
+
+### Project Structure
+
+```
+medsynx/
+├── app/
+│   ├── services/
+│   │   ├── synthetic_generator.py
+│   │   ├── privacy_evaluator.py
+│   │   ├── utility_evaluator.py
+│   │   ├── medical_evaluator.py
+│   │   └── image_generator.py
+│   ├── api/
+│   └── main.py
+├── scripts/
+│   ├── generate_sample_data.py
+│   └── run_demo.py
+├── notebooks/
+│   └── run_demo.ipynb
+├── tests/
+├── sample_data/
+└── docker/
+```
+
+### Running Tests
+
+```bash
+pytest tests/ --cov=app
+```
+
+### Docker Deployment
+
+```bash
+# Build and run with Docker Compose
+docker-compose -f docker/docker-compose.prod.yml up -d
+```
 
 ## Contributing
 
 1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## Acknowledgments
 
-- SynthCity library for synthetic data generation
-- FastAPI for the backend framework
-- React for the frontend framework 
+- [Synthea](https://github.com/synthetichealth/synthea) for synthetic patient data generation
+- [PyTorch](https://pytorch.org/) for deep learning capabilities
+- [FastAPI](https://fastapi.tiangolo.com/) for the web framework 
