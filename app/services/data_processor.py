@@ -1,6 +1,9 @@
+from synthcity.plugins import Plugins
+from synthcity.plugins.core.dataloader import GenericDataLoader
+from synthcity.plugins.core.schema import Schema
 import pandas as pd
 import numpy as np
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 import os
 from pathlib import Path
 import logging
@@ -17,6 +20,7 @@ class DataProcessor:
         """
         self.upload_dir = upload_dir
         os.makedirs(upload_dir, exist_ok=True)
+        self.plugins = Plugins()
         
     def save_uploaded_file(self, file: Any, filename: str) -> str:
         """
@@ -59,77 +63,121 @@ class DataProcessor:
             logger.error(f"Error loading data: {str(e)}")
             raise
             
-    def validate_data(self, data: pd.DataFrame) -> Dict[str, Any]:
+    def infer_schema(self, data: pd.DataFrame) -> Schema:
         """
-        Validate the loaded data.
+        Infer the schema of the input data.
         
         Args:
             data: Input DataFrame
             
         Returns:
-            Dictionary containing validation results
+            Schema object with column types and constraints
         """
         try:
-            validation_results = {
-                "row_count": len(data),
-                "column_count": len(data.columns),
-                "missing_values": data.isnull().sum().to_dict(),
-                "data_types": data.dtypes.astype(str).to_dict(),
-                "is_valid": True,
-                "errors": []
-            }
+            # Infer data types
+            categorical_columns = []
+            numerical_columns = []
+            datetime_columns = []
             
-            # Check for empty dataset
-            if len(data) == 0:
-                validation_results["is_valid"] = False
-                validation_results["errors"].append("Dataset is empty")
-                
-            # Check for too many missing values
-            missing_ratio = data.isnull().sum().mean() / len(data)
-            if missing_ratio > 0.5:
-                validation_results["is_valid"] = False
-                validation_results["errors"].append("Too many missing values")
-                
-            return validation_results
+            for col in data.columns:
+                if pd.api.types.is_numeric_dtype(data[col]):
+                    numerical_columns.append(col)
+                elif pd.api.types.is_datetime64_any_dtype(data[col]):
+                    datetime_columns.append(col)
+                else:
+                    categorical_columns.append(col)
             
+            return Schema(
+                categorical_columns=categorical_columns,
+                numerical_columns=numerical_columns,
+                datetime_columns=datetime_columns
+            )
         except Exception as e:
-            logger.error(f"Error validating data: {str(e)}")
+            logger.error(f"Error inferring schema: {str(e)}")
             raise
-            
-    def preprocess_data(self, data: pd.DataFrame) -> pd.DataFrame:
+    
+    def preprocess_data(
+        self,
+        data: pd.DataFrame,
+        schema: Optional[Schema] = None,
+        target_column: Optional[str] = None,
+        sensitive_features: Optional[List[str]] = None
+    ) -> Tuple[GenericDataLoader, Dict[str, Any]]:
         """
-        Preprocess the data for synthetic generation.
+        Preprocess the input data for synthetic generation.
         
         Args:
             data: Input DataFrame
+            schema: Optional Schema object
+            target_column: Optional target column for supervised learning
+            sensitive_features: Optional list of sensitive columns
             
         Returns:
-            Preprocessed DataFrame
+            Tuple of (GenericDataLoader, preprocessing_info)
         """
         try:
-            # Make a copy to avoid modifying the original data
-            df = data.copy()
+            if schema is None:
+                schema = self.infer_schema(data)
             
             # Handle missing values
-            numeric_columns = df.select_dtypes(include=[np.number]).columns
-            categorical_columns = df.select_dtypes(exclude=[np.number]).columns
+            for col in schema.numerical_columns:
+                data[col] = data[col].fillna(data[col].mean())
             
-            # Fill numeric missing values with median
-            for col in numeric_columns:
-                df[col] = df[col].fillna(df[col].median())
-                
-            # Fill categorical missing values with mode
-            for col in categorical_columns:
-                df[col] = df[col].fillna(df[col].mode()[0])
-                
-            # Convert categorical variables to numeric
-            for col in categorical_columns:
-                df[col] = pd.Categorical(df[col]).codes
-                
-            return df
+            for col in schema.categorical_columns:
+                data[col] = data[col].fillna(data[col].mode()[0])
+            
+            # Create dataloader
+            loader = GenericDataLoader(
+                data,
+                sensitive_features=sensitive_features or [],
+                target_column=target_column
+            )
+            
+            preprocessing_info = {
+                "schema": {
+                    "categorical_columns": schema.categorical_columns,
+                    "numerical_columns": schema.numerical_columns,
+                    "datetime_columns": schema.datetime_columns
+                },
+                "target_column": target_column,
+                "sensitive_features": sensitive_features,
+                "n_samples": len(data)
+            }
+            
+            return loader, preprocessing_info
             
         except Exception as e:
-            logger.error(f"Error preprocessing data: {str(e)}")
+            logger.error(f"Error in preprocessing data: {str(e)}")
+            raise
+    
+    def validate_data(self, data: pd.DataFrame) -> bool:
+        """
+        Validate the input data.
+        
+        Args:
+            data: Input DataFrame
+            
+        Returns:
+            bool indicating if data is valid
+        """
+        try:
+            # Check if data is empty
+            if data.empty:
+                raise ValueError("Data is empty")
+            
+            # Check for all missing columns
+            if data.columns.empty:
+                raise ValueError("No columns in data")
+            
+            # Check for too many missing values
+            missing_ratio = data.isnull().sum().sum() / (data.shape[0] * data.shape[1])
+            if missing_ratio > 0.5:
+                raise ValueError("Too many missing values (>50%)")
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Data validation error: {str(e)}")
             raise
             
     def get_data_summary(self, data: pd.DataFrame) -> Dict[str, Any]:

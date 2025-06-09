@@ -1,5 +1,5 @@
 from pydantic_settings import BaseSettings
-from typing import Optional
+from typing import Optional, List
 import os
 from dotenv import load_dotenv
 import secrets
@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     SQLALCHEMY_DATABASE_URI: Optional[str] = None
     
     # CORS
-    BACKEND_CORS_ORIGINS: list = ["http://localhost:3000"]
+    BACKEND_CORS_ORIGINS: List[str] = ["http://localhost:3000"]
     
     # File Upload
     UPLOAD_DIR: str = "uploads"
@@ -32,12 +32,16 @@ class Settings(BaseSettings):
     ALLOWED_FILE_TYPES: list = [".csv", ".xlsx", ".dcm", ".nii", ".nii.gz", ".png", ".jpg", ".jpeg"]
     
     # Synthetic Data Generation
-    DEFAULT_EPSILON: float = 1.0  # Default differential privacy parameter
-    DEFAULT_DELTA: float = 1e-5   # Default delta parameter for DP
-    MIN_EPSILON: float = 0.1      # Minimum allowed epsilon for strong privacy
-    MAX_EPSILON: float = 10.0     # Maximum allowed epsilon
-    MIN_DATASET_SIZE: int = 100   # Minimum records needed for synthesis
-    MAX_TRAINING_TIME: int = 3600 # Maximum training time in seconds
+    DEFAULT_EPSILON: float = 1.0  # Differential privacy parameter
+    DEFAULT_DELTA: float = 1e-5   # DP relaxation parameter
+    DEFAULT_MODEL: str = "dpgan"   # Default synthetic data model
+    SUPPORTED_MODELS: List[str] = ["dpgan", "pategan", "ctgan"]
+    MAX_FILE_SIZE: int = 100 * 1024 * 1024  # 100MB
+    ALLOWED_EXTENSIONS: List[str] = [".csv"]
+    
+    # Data Storage
+    UPLOAD_FOLDER: str = "data/original"
+    SYNTHETIC_FOLDER: str = "data/synthetic"
     
     # Privacy Settings
     PRIVACY_METRICS_THRESHOLD: float = 0.7  # Minimum privacy score required
