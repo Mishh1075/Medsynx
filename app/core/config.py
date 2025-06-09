@@ -2,25 +2,29 @@ from pydantic_settings import BaseSettings
 from typing import Optional
 import os
 from dotenv import load_dotenv
+import secrets
 
 load_dotenv()
 
 class Settings(BaseSettings):
-    PROJECT_NAME: str = "MedSynX"
+    PROJECT_NAME: str = "Synthetic Data Generator"
     VERSION: str = "1.0.0"
     API_V1_STR: str = "/api/v1"
     
     # Security
-    SECRET_KEY: str = os.getenv("SECRET_KEY", "your-secret-key-here")
+    SECRET_KEY: str = secrets.token_urlsafe(32)
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-    RATE_LIMIT_SECONDS: int = 1  # 1 request per second per IP
-    MAX_FAILED_LOGIN_ATTEMPTS: int = 5
-    ACCOUNT_LOCKOUT_MINUTES: int = 15
-    PASSWORD_MIN_LENGTH: int = 12
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 8  # 8 days
     
     # Database
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./medsynx.db")
+    POSTGRES_SERVER: str = "localhost"
+    POSTGRES_USER: str = "postgres"
+    POSTGRES_PASSWORD: str = "postgres"
+    POSTGRES_DB: str = "synthetic_data"
+    SQLALCHEMY_DATABASE_URI: Optional[str] = None
+    
+    # CORS
+    BACKEND_CORS_ORIGINS: list = ["http://localhost:3000"]
     
     # File Upload
     UPLOAD_DIR: str = "uploads"
@@ -49,5 +53,15 @@ class Settings(BaseSettings):
     
     class Config:
         case_sensitive = True
+        env_file = ".env"
+    
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        
+        if not self.SQLALCHEMY_DATABASE_URI:
+            self.SQLALCHEMY_DATABASE_URI = (
+                f"postgresql://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}@"
+                f"{self.POSTGRES_SERVER}/{self.POSTGRES_DB}"
+            )
 
 settings = Settings() 

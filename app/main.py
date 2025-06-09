@@ -16,6 +16,7 @@ from app.services.data_processor import DataProcessor
 from app.services.synthetic_generator import SyntheticGenerator
 from app.services.evaluation_service import EvaluationService
 from app.api.auth import router as auth_router, get_current_user
+from app.api.v1 import auth as auth_v1, synthetic_data
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -27,13 +28,14 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
-    description="A scalable synthetic data generation platform for healthcare with differential privacy"
+    description="A scalable synthetic data generation platform for healthcare with differential privacy",
+    openapi_url=f"{settings.API_V1_STR}/openapi.json"
 )
 
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.BACKEND_CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -48,13 +50,15 @@ synthetic_generator = SyntheticGenerator()
 evaluation_service = EvaluationService()
 audit_logger = AuditLogger()
 
-# Include authentication router
-app.include_router(auth_router, prefix="/api/v1/auth", tags=["auth"])
+# Include routers
+app.include_router(auth_v1.router, prefix=f"{settings.API_V1_STR}/auth", tags=["auth"])
+app.include_router(synthetic_data.router, prefix=f"{settings.API_V1_STR}/synthetic", tags=["synthetic"])
 
 @app.middleware("http")
 async def audit_requests(request: Request, call_next):
     """Middleware to audit all requests."""
     start_time = datetime.utcnow()
+
 @app.get("/")
 def read_root():
     return {"message": "Welcome to MedSynX API"}
