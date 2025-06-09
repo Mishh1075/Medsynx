@@ -1,0 +1,241 @@
+openapi: 3.0.0
+info:
+  title: MedSynx API
+  description: API for generating and evaluating synthetic medical data
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8000
+    description: Development server
+  - url: https://api.medsynx.com
+    description: Production server
+
+components:
+  schemas:
+    PrivacyConfig:
+      type: object
+      properties:
+        epsilon:
+          type: number
+          description: Privacy budget (ε)
+          minimum: 0
+          example: 1.0
+        delta:
+          type: number
+          description: Privacy relaxation parameter (δ)
+          minimum: 0
+          maximum: 1
+          example: 1e-5
+        numSamples:
+          type: integer
+          description: Number of synthetic samples to generate
+          minimum: 1
+          example: 1000
+        noiseMultiplier:
+          type: number
+          description: Amount of noise to add for privacy
+          minimum: 0
+          example: 1.0
+      required:
+        - epsilon
+        - delta
+        - numSamples
+        - noiseMultiplier
+
+    GenerationResults:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the generation job
+        status:
+          type: string
+          enum: [pending, running, completed, failed]
+        progress:
+          type: number
+          description: Generation progress (0-100)
+        metrics:
+          type: object
+          properties:
+            privacy:
+              type: object
+              properties:
+                mia_auc:
+                  type: number
+                  description: Membership inference attack AUC score
+                attribute_disclosure:
+                  type: number
+                  description: Attribute disclosure risk score
+            utility:
+              type: object
+              properties:
+                statistical_similarity:
+                  type: number
+                  description: Statistical similarity score
+                ml_utility:
+                  type: number
+                  description: Machine learning utility score
+        error:
+          type: string
+          description: Error message if generation failed
+
+    Error:
+      type: object
+      properties:
+        code:
+          type: integer
+          description: HTTP status code
+        message:
+          type: string
+          description: Error message
+
+paths:
+  /api/upload:
+    post:
+      summary: Upload original data
+      description: Upload medical data for synthetic generation
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: CSV or DICOM file
+      responses:
+        '200':
+          description: Upload successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    description: Unique identifier for the uploaded data
+        '400':
+          description: Invalid file format
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/generate:
+    post:
+      summary: Generate synthetic data
+      description: Generate privacy-preserving synthetic data
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Original data file
+                config:
+                  $ref: '#/components/schemas/PrivacyConfig'
+      responses:
+        '200':
+          description: Generation started successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerationResults'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/status/{id}:
+    get:
+      summary: Get generation status
+      description: Check the status of a synthetic data generation job
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Generation status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerationResults'
+        '404':
+          description: Job not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/download/{id}:
+    get:
+      summary: Download synthetic data
+      description: Download generated synthetic data and evaluation results
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Download successful
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Results not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/evaluate:
+    post:
+      summary: Evaluate synthetic data
+      description: Run privacy and utility evaluation on synthetic data
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                original:
+                  type: string
+                  format: binary
+                  description: Original data file
+                synthetic:
+                  type: string
+                  format: binary
+                  description: Synthetic data file
+      responses:
+        '200':
+          description: Evaluation results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  privacy_metrics:
+                    type: object
+                  utility_metrics:
+                    type: object
+                  medical_metrics:
+                    type: object
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error' 
