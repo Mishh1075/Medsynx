@@ -1,0 +1,19 @@
+// frontend/pages/Dashboard.tsx
+
+import React from 'react';
+import UploadForm from '../components/UploadForm';
+import GenerateSynthetic from '../components/GenerateSynthetic';
+import DownloadData from '../components/DownloadData';
+
+const Dashboard = () => {
+  return (
+    <div style={{ padding: '2rem' }}>
+      <h1>MedSynX Dashboard 🧬</h1>
+      <UploadForm />
+      <GenerateSynthetic />
+      <DownloadData />
+    </div>
+  );
+};
+
+export default Dashboard;
