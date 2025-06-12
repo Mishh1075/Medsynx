@@ -71,4 +71,9 @@ htmlcov/
 *.ipynb
 
 # Docker
-.docker/ 
+.docker/ venv/
+.env
+__pycache__/
+venv/
+.env
+__pycache__/
